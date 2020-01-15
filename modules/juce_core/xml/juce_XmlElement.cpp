@@ -455,6 +455,29 @@ void XmlElement::writeToStream (OutputStream& output, StringRef dtdToUse,
     writeTo (output, options);
 }
 
+/*
+bg - added this to write directly to file rather than using temporary
+*/
+bool XmlElement::writeToFileDirect(const File& file,
+	StringRef dtdToUse,
+	StringRef encodingType,
+	const int lineWrapLength) const
+{
+	FileOutputStream out(file);
+
+	if (!out.openedOk())
+		return false;
+
+	out.setPosition(0);
+	writeToStream(out, dtdToUse, false, true, encodingType, lineWrapLength);
+	out.truncate();
+	out.flush(); // (called explicitly to force an fsync on posix)
+
+	if (out.getStatus().failed())
+		return false;
+	return true;
+}
+
 bool XmlElement::writeToFile (const File& file, StringRef dtdToUse,
                               StringRef encodingType, int lineWrapLength) const
 {
