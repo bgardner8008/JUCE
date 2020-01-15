@@ -732,10 +732,39 @@ public:
         }
     }
 
+	// bg - adding different fine-tune logic
+	bool isFineTuneModifier(const ModifierKeys& mods)
+	{
+		//		DBG(String::formatted("flags: %x", mods.getRawFlags()));
+		// Wave Arts uses SHIFT and right-mouse, ProTools specifies CTRL on Win and Command on Mac for fine tune
+		return mods.testFlags(ModifierKeys::shiftModifier | ModifierKeys::rightButtonModifier |
+			ModifierKeys::ctrlModifier | ModifierKeys::commandModifier);
+	}
+
     void handleAbsoluteDrag (const MouseEvent& e)
     {
         auto mousePos = (isHorizontal() || style == RotaryHorizontalDrag) ? e.position.x : e.position.y;
         double newPos = 0;
+
+		// bg adding new fine tune logic
+		bool isFineTune = false;
+		int fineTuneScale = 1;
+
+		// logic to detect changing fine tune mode
+		if (style == RotaryHorizontalDrag
+			|| style == RotaryVerticalDrag
+			|| style == RotaryHorizontalVerticalDrag)
+		{
+			isFineTune = isFineTuneModifier(e.mods);
+			fineTuneScale = isFineTune ? 10 : 1;
+			if (wasFineTune != isFineTune) {
+				DBG(String::formatted("mod flags: %x fineTune %d", e.mods.getRawFlags(), (int)isFineTune));
+				// simulate a new drag start
+				valueOnMouseDown = valueWhenLastDragged;
+				mouseDragStartPos = e.position;
+				wasFineTune = isFineTune;
+			}
+		}
 
         if (style == RotaryHorizontalDrag
             || style == RotaryVerticalDrag
@@ -751,7 +780,7 @@ public:
                               : mouseDragStartPos.y - e.position.y;
 
             newPos = owner.valueToProportionOfLength (valueOnMouseDown)
-                       + mouseDiff * (1.0 / pixelsForFullDragExtent);
+				+ mouseDiff * (1.0 / (fineTuneScale * pixelsForFullDragExtent));
 
             if (style == IncDecButtons)
             {
@@ -765,7 +794,7 @@ public:
                                + (mouseDragStartPos.y - e.position.y);
 
             newPos = owner.valueToProportionOfLength (valueOnMouseDown)
-                       + mouseDiff * (1.0 / pixelsForFullDragExtent);
+				+ mouseDiff * (1.0 / (fineTuneScale * pixelsForFullDragExtent));
         }
         else
         {
@@ -1280,6 +1309,7 @@ public:
     bool incDecDragged = false;
     bool scrollWheelEnabled = true;
     bool snapsToMousePos = true;
+	bool wasFineTune = false;
 
     int popupHoverTimeout = 2000;
     double lastPopupDismissal = 0.0;

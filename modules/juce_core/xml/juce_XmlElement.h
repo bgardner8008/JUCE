@@ -711,6 +711,12 @@ public:
                                          StringRef encodingType = "UTF-8",
                                          int lineWrapLength = 60) const);
 
+	/* bg - added */
+	bool writeToFileDirect(const File& destinationFile,
+		StringRef dtdToUse,
+		StringRef encodingType = "UTF-8",
+		int lineWrapLength = 60) const;
+
     /** This has been deprecated in favour of the writeTo() method. */
     JUCE_DEPRECATED (bool writeToFile (const File& destinationFile,
                                        StringRef dtdToUse,
