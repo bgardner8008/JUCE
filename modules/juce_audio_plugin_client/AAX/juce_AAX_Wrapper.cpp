@@ -101,6 +101,36 @@ const int32_t juceChunkType = 'juce';
 const int maxAAXChannels = 8;
 
 //==============================================================================
+struct IndexAsParamID
+{
+	inline explicit IndexAsParamID(int i) noexcept : index(i) {}
+
+	operator AAX_CParamID() noexcept
+	{
+		jassert(index >= 0);
+
+		char* t = name + sizeof(name);
+		*--t = 0;
+		int v = index;
+
+		do
+		{
+			*--t = (char)('0' + (v % 10));
+			v /= 10;
+
+		} while (v > 0);
+
+		return static_cast<AAX_CParamID> (t);
+	}
+
+private:
+	int index;
+	char name[32];
+
+	JUCE_DECLARE_NON_COPYABLE(IndexAsParamID)
+};
+
+//==============================================================================
 namespace AAXClasses
 {
     static int32 getAAXParamHash (AAX_CParamID paramID) noexcept
@@ -655,8 +685,26 @@ namespace AAXClasses
 
         AAX_Result SetChunk (AAX_CTypeID chunkID, const AAX_SPlugInChunk* chunk) override
         {
-            if (chunkID != juceChunkType)
-                return AAX_CEffectParameters::SetChunk (chunkID, chunk);
+			if (chunkID != juceChunkType) {
+				// this is having no effect with legacy chunks because the parameter IDs don't match!
+				AAX_Result result = AAX_CEffectParameters::SetChunk(chunkID, chunk);
+#if WA_SUPPORT_LEGACY_AAX_CHUNKS
+				if (result == AAX_SUCCESS && chunkID == 'elck') {
+					// To support legacy plugs that did not save Juce chunk,
+					// we must read the parameters from AAX shell and copy them to Juce shell.
+					const int numParameters = pluginInstance->getNumParameters();
+					for (int i = 0; i < numParameters; ++i) {
+						AAX_IParameter* p = const_cast<AAX_IParameter*>
+							(mParameterManager.GetParameterByID(IndexAsParamID(i)));
+						if (p != nullptr) {
+							float val = static_cast<float>(p->GetNormalizedValue());
+							pluginInstance->setParameter(i, val);
+						}
+					}
+				}
+#endif
+				return result;
+			}
 
             pluginInstance->setStateInformation ((void*) chunk->fData, chunk->fSize);
 
@@ -1512,7 +1560,9 @@ namespace AAXClasses
                 if (sideChainBufferIdx <= 0)
                     sideChainBufferIdx = -1;
 
-                float* const meterTapBuffers = (i.meterTapBuffers != nullptr ? *i.meterTapBuffers : nullptr);
+                const int numMeters = i.pluginInstance->parameters.aaxMeters.size();
+
+                float* const meterTapBuffers = (i.meterTapBuffers != nullptr && numMeters > 0 ? *i.meterTapBuffers : nullptr);
 
                 i.pluginInstance->parameters.process (i.inputChannels, i.outputChannels, sideChainBufferIdx,
                                                       *(i.bufferSize), *(i.bypass) != 0,
@@ -1732,6 +1782,24 @@ namespace AAXClasses
         return meterIdx;
     }
 
+	// only support mono->mono, stereo->stereo for now, just for legacy TS2 - bg
+	static int getAAXType(bool isAudioSuite, const AAX_EStemFormat aaxInputFormat, const AAX_EStemFormat aaxOutputFormat)
+	{
+		ignoreUnused(aaxOutputFormat);
+		if (isAudioSuite) {
+			if (aaxInputFormat == AAX_eStemFormat_Mono)
+				return 'waAM';
+			else
+				return 'waAS';
+		}
+		else {
+			if (aaxInputFormat == AAX_eStemFormat_Mono)
+				return 'waMR';
+			else
+				return 'waSR';
+		}
+	}
+
     static void createDescriptor (AAX_IComponentDescriptor& desc, int configIndex,
                                   const AudioProcessor::BusesLayout& fullLayout, AudioProcessor& processor,
                                   const int numMeters)
@@ -1793,13 +1861,24 @@ namespace AAXClasses
         properties->AddProperty (AAX_eProperty_InputStemFormat,     static_cast<AAX_CPropertyValue> (aaxInputFormat));
         properties->AddProperty (AAX_eProperty_OutputStemFormat,    static_cast<AAX_CPropertyValue> (aaxOutputFormat));
 
-        // This value needs to match the RTAS wrapper's Type ID, so that
-        // the host knows that the RTAS/AAX plugins are equivalent.
-        properties->AddProperty (AAX_eProperty_PlugInID_Native,     'jcaa' + configIndex);
-
-       #if ! JucePlugin_AAXDisableAudioSuite
-        properties->AddProperty (AAX_eProperty_PlugInID_AudioSuite, 'jyaa' + configIndex);
-       #endif
+		// This value needs to match the RTAS wrapper's Type ID, so that
+		// the host knows that the RTAS/AAX plugins are equivalent.
+		//		AAX_TRACE(kAAX_Trace_Priority_Normal, "inStemFmt %d outStemFmt %d configIndex %d",
+		//			aaxInputFormat, aaxOutputFormat, configIndex);
+#if WA_SUPPORT_LEGACY_AAX_CHUNKS
+		ignoreUnused(configIndex);
+		// Instead of using Juce defaults, we have to match the older legacy IDs for TS2 - bg
+		properties->AddProperty(AAX_eProperty_PlugInID_Native, getAAXType(false, aaxInputFormat, aaxOutputFormat));
+#else
+		properties->AddProperty(AAX_eProperty_PlugInID_Native, 'jcaa' + configIndex);
+#endif
+#if ! JucePlugin_AAXDisableAudioSuite
+#if WA_SUPPORT_LEGACY_AAX_CHUNKS
+		properties->AddProperty(AAX_eProperty_PlugInID_AudioSuite, getAAXType(true, aaxInputFormat, aaxOutputFormat));
+#else
+		properties->AddProperty(AAX_eProperty_PlugInID_AudioSuite, 'jyaa' + configIndex);
+#endif
+#endif
 
        #if JucePlugin_AAXDisableMultiMono
         properties->AddProperty (AAX_eProperty_Constraint_MultiMonoSupport, false);
@@ -1851,9 +1930,20 @@ namespace AAXClasses
         const int numInputBuses  = plugin->getBusCount (true);
         const int numOutputBuses = plugin->getBusCount (false);
 
-        descriptor.AddName (JucePlugin_Desc);
-        descriptor.AddName (JucePlugin_Name);
-        descriptor.AddCategory (JucePlugin_AAXCategory);
+		// this is empty string - bg
+		//        descriptor.AddName (JucePlugin_Desc);
+		descriptor.AddName(JucePlugin_Name);
+		// added shorter variants - bg
+#ifdef AAXPlugin_Name1
+		descriptor.AddName(AAXPlugin_Name1);
+#endif
+#ifdef AAXPlugin_Name2
+		descriptor.AddName(AAXPlugin_Name2);
+#endif
+#ifdef AAXPlugin_Name3
+		descriptor.AddName(AAXPlugin_Name3);
+#endif
+		descriptor.AddCategory(JucePlugin_AAXCategory);
 
         const int numMeters = addAAXMeters (*plugin, descriptor);
 
@@ -1890,6 +1980,16 @@ namespace AAXClasses
             for (int outIdx = 0; outIdx < jmax (numOuts, 1); ++outIdx)
             {
                 AAX_EStemFormat aaxOutFormat = numOuts > 0 ? aaxFormats[outIdx] : AAX_eStemFormat_None;
+
+				// bg - reject anything that isn't mono->mono or stereo->stereo
+				if ((aaxInFormat != aaxOutFormat) ||
+					(aaxInFormat != AAX_eStemFormat_Mono && aaxInFormat != AAX_eStemFormat_Stereo))
+				{
+					AAX_TRACE(kAAX_Trace_Priority_Normal, "unexpected inStemFmt %d outStemFmt %d configIndex %d",
+						aaxInFormat, aaxOutFormat, configIndex);
+					continue;
+				}
+
                 AudioChannelSet outLayout = channelSetFromStemFormat (aaxOutFormat, false);
 
                 AudioProcessor::BusesLayout fullLayout;
@@ -1924,7 +2024,15 @@ AAX_Result JUCE_CDECL GetEffectDescriptions (AAX_ICollection* collection)
     if (AAX_IEffectDescriptor* const descriptor = collection->NewDescriptor())
     {
         AAXClasses::getPlugInDescription (*descriptor);
-        collection->AddEffect (JUCE_STRINGIFY (JucePlugin_AAXIdentifier), descriptor);
+
+#if WA_AAX_ID_IS_STRING
+		// Need this for legacy IDs which are already quoted such as "Tube Saturator 2"
+		// I could unquote definition in .jucer, but it may be used elsewhere, leave this hack for now. 
+		collection->AddEffect(JucePlugin_AAXIdentifier, descriptor);
+#else
+		// juce defaults to a bundle id without quotes
+		collection->AddEffect(JUCE_STRINGIFY(JucePlugin_AAXIdentifier), descriptor);
+#endif
 
         collection->SetManufacturerName (JucePlugin_Manufacturer);
         collection->AddPackageName (JucePlugin_Desc);

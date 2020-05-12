@@ -92,6 +92,7 @@
  #include <base/source/frect.cpp>
  #include <base/source/fstreamer.cpp>
  #include <base/source/fstring.cpp>
+ //#include <base/source/flock.cpp>
  #include <base/source/fthread.cpp>
  #include <base/source/updatehandler.cpp>
  #include <pluginterfaces/base/conststringtable.cpp>

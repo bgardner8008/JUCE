@@ -40,7 +40,8 @@ PropertiesFile::Options::Options()
       doNotSave (false),
       millisecondsBeforeSaving (3000),
       storageFormat (PropertiesFile::storeAsXML),
-      processLock (nullptr)
+      processLock (nullptr),
+	  doNotUseXMLTempFile(false)
 {
 }
 
@@ -236,11 +237,21 @@ bool PropertiesFile::saveAsXml()
     if (pl != nullptr && ! pl->isLocked())
         return false; // locking failure..
 
-    if (doc.writeToFile (file, String()))
-    {
-        needsWriting = false;
-        return true;
-    }
+	// bg - option to write directly rather than via temp file which changes file ID
+	if (options.doNotUseXMLTempFile) {
+		if (doc.writeToFileDirect(file, String()))
+		{
+			needsWriting = false;
+			return true;
+		}
+	}
+	else {
+		if (doc.writeToFile(file, String()))
+		{
+			needsWriting = false;
+			return true;
+		}
+	}
 
     return false;
 }

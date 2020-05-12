@@ -235,6 +235,12 @@ public:
                         StringRef encodingType = "UTF-8",
                         int lineWrapLength = 60) const;
 
+	/* bg - added */
+	bool writeToFileDirect(const File& destinationFile,
+		StringRef dtdToUse,
+		StringRef encodingType = "UTF-8",
+		int lineWrapLength = 60) const;
+
     /** Writes the element to a file as an XML document.
 
         To improve safety in case something goes wrong while writing the file, this
