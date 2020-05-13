@@ -31,6 +31,9 @@
 #ifndef JUCE_BYTEORDER_H_INCLUDED
 #define JUCE_BYTEORDER_H_INCLUDED
 
+#if JUCE_MAC || JUCE_IOS
+ #include <libkern/OSByteOrder.h>
+#endif
 
 //==============================================================================
 /** Contains static methods for converting the byte order between different

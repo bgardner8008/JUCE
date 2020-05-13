@@ -42,6 +42,10 @@
  #include <unistd.h>
 #endif
 
+#if JUCE_MAC
+#include <unistd.h>
+#endif
+
 #ifndef RUN_CLANG_IN_CHILD_PROCESS
  #error
 #endif

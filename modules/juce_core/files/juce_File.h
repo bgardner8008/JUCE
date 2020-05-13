@@ -31,6 +31,9 @@
 #ifndef JUCE_FILE_H_INCLUDED
 #define JUCE_FILE_H_INCLUDED
 
+#if JUCE_MAC || JUCE_IOS
+ using OSType = uint32_t;
+#endif
 
 //==============================================================================
 /**
