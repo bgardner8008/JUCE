@@ -776,6 +776,14 @@ public:
     */
     void setNumDecimalPlacesToDisplay (int decimalPlacesToDisplay);
 
+	/** Get the fine tune scale factor - WA
+	*/
+	int getFineTuneScale();
+
+	/** Set the fine tune scale factor - WA
+	*/
+	void setFineTuneScale(int scale);
+
     //==============================================================================
     /** Allows a user-defined mapping of distance along the slider to its value.
 

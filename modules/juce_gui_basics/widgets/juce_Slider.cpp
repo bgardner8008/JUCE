@@ -748,7 +748,7 @@ public:
 
 		// bg adding new fine tune logic
 		bool isFineTune = false;
-		int fineTuneScale = 1;
+		int pixelScale = 1;
 
 		// logic to detect changing fine tune mode
 		if (style == RotaryHorizontalDrag
@@ -756,7 +756,7 @@ public:
 			|| style == RotaryHorizontalVerticalDrag)
 		{
 			isFineTune = isFineTuneModifier(e.mods);
-			fineTuneScale = isFineTune ? 10 : 1;
+			pixelScale = isFineTune ? fineTuneScale : 1;
 			if (wasFineTune != isFineTune) {
 				DBG(String::formatted("mod flags: %x fineTune %d", e.mods.getRawFlags(), (int)isFineTune));
 				// simulate a new drag start
@@ -780,7 +780,7 @@ public:
                               : mouseDragStartPos.y - e.position.y;
 
             newPos = owner.valueToProportionOfLength (valueOnMouseDown)
-				+ mouseDiff * (1.0 / (fineTuneScale * pixelsForFullDragExtent));
+				+ mouseDiff * (1.0 / (pixelScale * pixelsForFullDragExtent));
 
             if (style == IncDecButtons)
             {
@@ -794,7 +794,7 @@ public:
                                + (mouseDragStartPos.y - e.position.y);
 
             newPos = owner.valueToProportionOfLength (valueOnMouseDown)
-				+ mouseDiff * (1.0 / (fineTuneScale * pixelsForFullDragExtent));
+				+ mouseDiff * (1.0 / (pixelScale * pixelsForFullDragExtent));
         }
         else
         {
@@ -1288,6 +1288,7 @@ public:
     Time lastMouseWheelTime;
     Rectangle<int> sliderRect;
     std::unique_ptr<DragInProgress> currentDrag;
+	int fineTuneScale = 10;
 
     TextEntryBoxPosition textBoxPos;
     String textSuffix;
@@ -1646,6 +1647,16 @@ void Slider::setNumDecimalPlacesToDisplay (int decimalPlacesToDisplay)
 {
     pimpl->numDecimalPlaces = decimalPlacesToDisplay;
     updateText();
+}
+
+int Slider::getFineTuneScale()
+{
+	return pimpl->fineTuneScale;
+}
+
+void Slider::setFineTuneScale(int scale)
+{
+	pimpl->fineTuneScale = scale;
 }
 
 //==============================================================================
