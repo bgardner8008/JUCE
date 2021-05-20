@@ -416,8 +416,16 @@ public:
 
     tresult PLUGIN_API terminate() override
     {
-        if (auto* pluginInstance = getPluginInstance())
-            pluginInstance->removeListener (this);
+		if (auto* pluginInstance = getPluginInstance()) {
+			pluginInstance->removeListener(this);
+
+			// Adobe Premiere Pro deletes filter without deleting editor, causes jassert
+			// in AudioProcessor::~AudioProcessor(), and crashes.
+			if (AudioProcessorEditor* editor = pluginInstance->getActiveEditor()) {
+				pluginInstance->editorBeingDeleted(editor);
+				delete editor;
+			}
+		}
 
         audioProcessor = nullptr;
 
